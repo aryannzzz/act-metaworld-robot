@@ -11,7 +11,7 @@ MetaWorld's Sawyer robot uses a **4-dimensional action space**, not 8D as initia
 ## Action Space Breakdown
 
 ```python
-action = [delta_x, delta_y, delta_z, gripper]  # Shape: (4,)
+action = [delta_x, delta_y, delta_z, gripper]
 ```
 
 - **delta_x, delta_y, delta_z**: Relative end-effector position changes
