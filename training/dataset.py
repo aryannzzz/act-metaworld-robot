@@ -4,9 +4,10 @@ import torch
 from torch.utils.data import Dataset
 import h5py
 import numpy as np
+from PIL import Image
 
 class ACTDataset(Dataset):
-    """Dataset for ACT training"""
+    """Dataset for ACT training (Standard ACT - no images in encoder)"""
     def __init__(self, hdf5_path, chunk_size=100, image_size=(480, 480)):
         self.chunk_size = chunk_size
         self.image_size = image_size
@@ -14,11 +15,13 @@ class ACTDataset(Dataset):
         # Load all demonstrations into memory
         self.demonstrations = []
         with h5py.File(hdf5_path, 'r') as f:
-            for demo_name in f.keys():
+            # Skip metadata group
+            demo_names = [k for k in f.keys() if k.startswith('demo_')]
+            for demo_name in demo_names:
                 demo = {
                     'images': f[demo_name]['images'][:],      # [T, H, W, 3]
-                    'joints': f[demo_name]['joints'][:],       # [T, 8]
-                    'actions': f[demo_name]['actions'][:],     # [T, 8]
+                    'states': f[demo_name]['states'][:],      # [T, 39] - full state observations
+                    'actions': f[demo_name]['actions'][:],     # [T, 4]
                 }
                 self.demonstrations.append(demo)
         
@@ -54,7 +57,8 @@ class ACTDataset(Dataset):
         img = torch.from_numpy(img).float() / 255.0
         img = img.permute(2, 0, 1)  # [3, H, W]
         
-        joints = torch.from_numpy(demo['joints'][t]).float()
+        # Use 'states' as joints (39-dim observations), not 'joints' (which is 4-dim actions)
+        joints = torch.from_numpy(demo['states'][t]).float()
         
         # Extract action chunk
         actions = torch.from_numpy(

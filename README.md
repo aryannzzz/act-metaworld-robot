@@ -1,172 +1,444 @@
-# ACT Implementation for MetaWorld and SO101
+# ACT Variants - MetaWorld MT-1 Comparison---
 
-This repository contains the implementation of Action Chunking with Transformers (ACT) for robotic manipulation tasks, starting with MetaWorld simulation and progressing to the SO101 robot.
+license: apache-2.0
 
-## 📁 Project Structure
+A comprehensive implementation comparing two Action Chunking with Transformers (ACT) architectures for robotic manipulation tasks on MetaWorld MT-1 shelf-place.tags:
+
+- robotics
+
+## 📦 Overview- reinforcement-learning
+
+- metaworld
+
+This project implements and compares two ACT variants:- imitation-learning
+
+- **StandardACT**: Images used only in the decoder- action-chunking
+
+- **ModifiedACT**: Images used in both encoder and decoderlibrary_name: pytorch
+
+---
+
+Both models are trained on MetaWorld MT-1 shelf-place-v3 task and evaluated comprehensively.
+
+# ACT-MODIFIED - MetaWorld MT-1 Shelf-Place
+
+## 🤖 Published Models
+
+## Model Description
+
+Both trained models are available on HuggingFace Hub:
+
+This is a trained **MODIFIED Action Chunking with Transformers (ACT)** model for the MetaWorld MT-1 shelf-place-v3 task.
+
+| Model | Link | Size | Status |
+
+|-------|------|------|--------|## Architecture
+
+| **Standard ACT** | [🤗 View](https://huggingface.co/aryannzzz/act-metaworld-shelf-standard) | 225 MB | ✅ Published |
+
+| **Modified ACT** | [🤗 View](https://huggingface.co/aryannzzz/act-metaworld-shelf-modified) | 361 MB | ✅ Published |**Modified ACT** uses images in both **encoder and decoder** (visual conditioning).
+
+
+
+## 📂 Project Structure- **Encoder**: Takes image features + state (joints) + action history → latent distribution  
+
+- **Decoder**: Takes image features + state + latent sample → action chunk
+
+```- **Advantage**: Richer visual conditioning, more expressive latent space (25.43M parameters)
+
+ACT-modification/- **Hypothesis**: Should perform better with more training data
+
+├── README.md                          # Main project documentation
+
+├── requirements.txt                   # Python dependencies## Training Details
+
+├── .gitignore                        # Git ignore rules
+
+│- **Task**: MetaWorld MT-1 shelf-place-v3
+
+├── models/                           # Model architectures  - Single-task manipulation (place puck on shelf)
+
+│   ├── standard_act.py              # StandardACT implementation  - Varying object positions (randomized)
+
+│   └── modified_act.py              # ModifiedACT implementation- **Observations**: 
+
+│  - State: 39-dimensional (joint positions, velocities, gripper info)
+
+├── training/                         # Training modules  - Images: 480×480 RGB (downsampled to 64×64 for processing)
+
+│   ├── trainer.py                   # Training loop- **Action Space**: 4D continuous [Δx, Δy, Δz, gripper]
+
+│   ├── dataset.py                   # Data loading- **Training**:
+
+│   └── losses.py                    # Loss functions  - Demonstrations: 10 expert episodes (100% success)
+
+│  - Training samples: 4,500
+
+├── evaluation/                       # Evaluation modules  - Epochs: 50
+
+│   └── evaluator.py                 # Evaluation framework  - Batch size: 8
+
+│  - Learning rate: 1e-4
+
+├── envs/                            # Environment wrappers  - Chunk size: 100 steps
+
+│   └── metaworld_wrapper.py         # MetaWorld environment
+
+│## Performance
+
+├── scripts/                         # Executable scripts
+
+│   ├── collect_mt1_demos.py         # Data collection- **Success Rate**: 0% (limited training data)
+
+│   ├── train_act_variants.py        # Train both models- **Status**: Converged, ready for evaluation with more data
+
+│   ├── evaluate_and_compare.py      # Evaluation
+
+│   ├── generate_comparison_report.py # Report generation## Usage
+
+│   ├── push_models_simple.py        # Upload to HF Hub
+
+│   └── push_to_hub.py               # Alternative upload### Installation
+
+│
+
+├── configs/                         # Configuration files```bash
+
+│   └── production_config.yaml       # Main training config# Clone repo and install
+
+│git clone https://huggingface.co/aryannzzz/act-metaworld-shelf-modified
+
+├── experiments/                     # Training runspip install torch torchvision
+
+│   ├── standard_act_20251211_135638/```
+
+│   └── modified_act_20251211_150524/
+
+│### Loading the Model
+
+├── evaluation_results/              # Evaluation metrics
+
+│   ├── evaluation_results.json```python
+
+│   └── comparison_plot.pngimport torch
+
+│from pathlib import Path
+
+├── tests/                           # Test files
+
+│   ├── test_metaworld.py# Load checkpoint
+
+│   └── test_wrapper.pydevice = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+│checkpoint = torch.load('model_modified.pt', map_location=device)
+
+├── docs/                            # Additional documentation
+
+│   └── [detailed guides]# Model config is in checkpoint['config']
+
+│model_config = checkpoint['config']
+
+├── Extra explanation files/         # Supplementary documentationprint("Model configuration:", model_config)
+
+│   ├── PROJECT_FINAL_SUMMARY.md
+
+│   ├── DOCUMENTATION_INDEX.md# The checkpoint contains:
+
+│   └── [other guides]# - model_state_dict: Model weights
+
+│# - config: Model architecture config
+
+└── [root-level files]# - training_config: Training hyperparameters
+
+    ├── COMPARISON_REPORT.md         # Main results report```
+
+    ├── IMPLEMENTATION_STATUS.md     # Implementation details
+
+    └── FINAL_STEPS.md              # Execution guide## Model Architecture Details
 
 ```
-ACT-modification/
-├── envs/                           # Environment wrappers
-│   ├── metaworld_wrapper.py       # Full MetaWorld wrapper with multi-camera support
-│   └── metaworld_simple_wrapper.py # Simplified wrapper for testing
-├── models/                         # ACT model implementations
-│   └── standard_act.py            # Standard ACT (CVAE)
-├── training/                       # Training utilities
-│   ├── dataset.py                 # Dataset and data loading
-│   └── trainer.py                 # Training loop
-├── evaluation/                     # Evaluation utilities
-│   └── evaluator.py               # Policy evaluation with temporal ensemble
-├── scripts/                        # Executable scripts
-│   ├── collect_metaworld_demos.py # Collect demonstrations
-│   ├── train_standard.py          # Train standard ACT
-│   └── evaluate.py                # Evaluate trained policy
-├── configs/                        # Configuration files
-│   └── standard_act.yaml          # Config for standard ACT
-├── data/                          # Demonstration data (created during collection)
-├── checkpoints/                   # Model checkpoints (created during training)
-├── test_metaworld.py              # Test MetaWorld installation
-├── test_wrapper.py                # Test environment wrapper
-└── README.md                      # This file
-```
+
+### Configuration
 
 ## 🚀 Quick Start
 
-### 1. Installation
+```json
 
-```bash
-# Create conda environment
-conda create -n act_exp python=3.10
-conda activate act_exp
+### Installation{
 
-# Install PyTorch with CUDA
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+  "dataset": {
 
-# Install MetaWorld 3.0
-pip install git+https://github.com/Farama-Foundation/Metaworld.git@master
+```bash    "batch_size": 8,
 
-# Install dependencies
-pip install "mujoco>=3.0.0"
-pip install "gymnasium>=0.29.0"
-pip install numpy matplotlib tqdm h5py pillow pyyaml
-pip install imageio imageio-ffmpeg
-```
+# Clone repository    "num_workers": 2,
 
-### 2. Test Installation
+git clone https://github.com/aryannzzz/act-metaworld.git    "val_split": 0.2
 
-```bash
-# Test MetaWorld
-python test_metaworld.py
+cd act-metaworld  },
 
-# Test wrapper
-python test_wrapper.py
-```
+  "model": {
 
-### 3. Collect Demonstrations
+# Create conda environment    "joint_dim": 39,
 
-```bash
-# Collect demonstrations using scripted policy
-python scripts/collect_metaworld_demos.py
-```
+conda create -n act python=3.10 -y    "action_dim": 4,
 
-This will save demonstrations to `data/shelf_place_demos.hdf5`.
+conda activate act    "hidden_dim": 256,
 
-### 4. Train ACT
+    "latent_dim": 32,
 
-```bash
-# Train standard ACT
-python scripts/train_standard.py --config configs/standard_act.yaml
-```
+# Install dependencies    "n_encoder_layers": 4,
 
-Training checkpoints will be saved to `checkpoints/`.
+pip install -r requirements.txt    "n_decoder_layers": 4,
 
-### 5. Evaluate
+```    "n_heads": 8,
 
-```bash
-# Evaluate trained model
-python scripts/evaluate.py --checkpoint checkpoints/best.pth --num_episodes 100
-```
+    "feedforward_dim": 1024,
 
-## 📝 Implementation Details
+### Training    "dropout": 0.1
 
-### Environment (MetaWorld 3.0 + Gymnasium)
+  },
 
-- **Task**: `shelf-place-v3` (pick and place puck on shelf)
-- **API**: Gymnasium (not old gym)
-- **Observations**: RGB images + proprioceptive state (39D)
-- **Actions**: 4 DoF [delta_x, delta_y, delta_z, gripper] - relative end-effector motion
+```bash  "chunking": {
 
-### Model Architecture
+# Train both variants (50 epochs each)    "chunk_size": 50,
 
-**Standard ACT** (CVAE-based):
-- **Encoder**: Transformer encoder (joints + actions → latent)
-- **Decoder**: Transformer decoder (images + joints + latent → action chunk)
-- **Image Encoder**: ResNet18
-- **Action Chunking**: 100-step chunks
-- **Temporal Ensemble**: Exponentially weighted averaging
+python scripts/train_act_variants.py --config configs/production_config.yaml    "temporal_ensemble_weight": 0.01
 
-### Training
+```  },
 
-- **Optimizer**: AdamW
-- **Learning Rate**: 1e-5
-- **Batch Size**: 8
-- **Epochs**: 2000
-- **Loss**: Reconstruction (MSE) + β*KL divergence (β=10)
+  "training": {
+
+### Evaluation    "epochs": 50,
+
+    "learning_rate": 0.0001,
+
+```bash    "weight_decay": 0.0001,
+
+# Evaluate both models    "kl_weight": 10.0,
+
+python scripts/evaluate_and_compare.py \    "grad_clip": 1.0
+
+  --standard_checkpoint experiments/standard_act_20251211_135638/checkpoints/best.pth \  },
+
+  --modified_checkpoint experiments/modified_act_20251211_150524/checkpoints/best.pth \  "env": {
+
+  --num_episodes 10    "task": "shelf-place-v3",
+
+```    "image_size": [
+
+      480,
+
+### Generate Comparison Report      480
+
+    ],
+
+```bash    "action_space": 4,
+
+python scripts/generate_comparison_report.py \    "state_space": 39
+
+  --results_dir evaluation_results  },
+
+```  "logging": {
+
+    "use_wandb": false,
+
+## 📊 Architecture Comparison    "log_every": 10,
+
+    "save_every": 10
+
+### StandardACT  }
+
+- **Encoder**: State + Action → Latent distribution}
+
+- **Decoder**: Image features + State + Latent → Action chunk```
+
+- **Parameters**: 18.74M
+
+- **Advantage**: Simpler architecture## Citation
+
+
+
+### ModifiedACTIf you use this model, please cite:
+
+- **Encoder**: Image features + State + Action → Latent distribution
+
+- **Decoder**: Image features + State + Latent → Action chunk```bibtex
+
+- **Parameters**: 25.43M@article{zhao2023learning,
+
+- **Advantage**: Visual conditioning in latent space  title={Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware},
+
+  author={Zhao, Tony Z and Kumar, Vikash and Levine, Sergey and Finn, Chelsea},
+
+## 📈 Results  journal={arXiv preprint arXiv:2304.13705},
+
+  year={2023}
+
+**Training Data:**}
+
+- 10 expert demonstrations```
+
+- 4,500 training samples
+
+- 50 training epochs## License
+
+
+
+**Evaluation:**Apache License 2.0
+
+- 10 episodes per model
+
+- Success rate: 0% (expected with limited data)---
+
+- Models converged successfully
+
+**Uploaded**: 2025-12-11 22:02:27  
+
+See [COMPARISON_REPORT.md](COMPARISON_REPORT.md) for detailed analysis.**Variant**: modified  
+
+**Repository**: https://huggingface.co/aryannzzz/act-metaworld-shelf-modified
+
+## 📚 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| **[COMPARISON_REPORT.md](COMPARISON_REPORT.md)** | Detailed analysis of both variants |
+| **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** | Implementation details and verification |
+| **[FINAL_STEPS.md](FINAL_STEPS.md)** | Step-by-step execution guide |
+| **[Extra explanation files/](Extra%20explanation%20files/)** | Supplementary guides and references |
 
 ## 🔧 Configuration
 
-Edit `configs/standard_act.yaml` to modify:
-- Model architecture (hidden_dim, n_layers, etc.)
-- Training parameters (learning_rate, batch_size, etc.)
-- Action chunking parameters (chunk_size, ensemble_weight)
-
-## 📊 Monitoring
-
-The trainer supports Weights & Biases logging. To enable:
+Main training configuration in `configs/production_config.yaml`:
 
 ```yaml
-# In configs/standard_act.yaml
-logging:
-  use_wandb: true
-  wandb_project: "act-metaworld"
-  exp_name: "my_experiment"
+# Model settings
+model:
+  hidden_dim: 256
+  latent_dim: 32
+  encoder_layers: 4
+  decoder_layers: 4
+
+# Training settings
+training:
+  epochs: 50
+  batch_size: 8
+  learning_rate: 1e-4
+  chunk_size: 100
 ```
 
-## 🎯 Next Steps
+## 📦 Data Collection
 
-1. ✅ **Stage 1**: MetaWorld baseline (Current)
-2. **Stage 2**: SO101 simulation
-3. **Stage 3**: Sim-to-real preparation
-4. **Stage 4**: Real SO101 deployment
+Expert demonstrations collected from MetaWorld:
 
-See `ACT_Virtual_Plan_CORRECTED_Part1.md` for detailed implementation plan.
+```python
+python scripts/collect_mt1_demos.py \
+  --task shelf-place-v3 \
+  --num_demos 10 \
+  --save_path demonstrations/mt1_10demos.hdf5
+```
 
-## 📚 References
+## 🧪 Testing
 
-- [ACT Paper](https://arxiv.org/abs/2304.13705)
-- [MetaWorld](https://github.com/Farama-Foundation/Metaworld)
-- [Gymnasium](https://gymnasium.farama.org/)
+```bash
+# Run tests
+python -m pytest tests/
+```
 
-## ⚠️ Important Notes
+## 📥 Using Published Models
 
-### MetaWorld 3.0 Changes
+### Load from HuggingFace Hub
 
-- Task names: `v2` → `v3` (e.g., `shelf-place-v3`)
-- API: `gym` → `gymnasium`
-- Reset returns: `(obs, info)` tuple
-- Step returns: 5 values (terminated, truncated separate)
-- Render: Must specify `render_mode='rgb_array'` at construction
+```python
+import torch
+from huggingface_hub import hf_hub_download
 
-### Common Issues
+# Download model
+model_file = hf_hub_download(
+    repo_id="aryannzzz/act-metaworld-shelf-standard",
+    filename="model_standard.pt"
+)
 
-**ImportError: No module named 'gym'**
-- Solution: Use `gymnasium` instead of `gym`
+# Load checkpoint
+checkpoint = torch.load(model_file)
+config = checkpoint['config']
+state_dict = checkpoint['model_state_dict']
+```
 
-**Render returns None**
-- Solution: Specify `render_mode='rgb_array'` when creating environment
+### Load from Local Checkpoint
 
-**Wrong number of return values from step()**
-- Solution: Gymnasium returns 5 values: `obs, reward, terminated, truncated, info`
+```python
+import torch
+
+# Load standard ACT
+checkpoint = torch.load(
+    'experiments/standard_act_20251211_135638/checkpoints/best.pth'
+)
+model_config = checkpoint['config']
+model_state = checkpoint['model_state_dict']
+```
+
+## 🔬 Reproducing Results
+
+To reproduce the complete pipeline:
+
+1. **Collect data:**
+   ```bash
+   python scripts/collect_mt1_demos.py
+   ```
+
+2. **Train models:**
+   ```bash
+   python scripts/train_act_variants.py
+   ```
+
+3. **Evaluate models:**
+   ```bash
+   python scripts/evaluate_and_compare.py
+   ```
+
+4. **Generate report:**
+   ```bash
+   python scripts/generate_comparison_report.py
+   ```
+
+## 📋 Requirements
+
+- Python 3.10+
+- PyTorch 2.0+
+- MetaWorld
+- Gymnasium
+- NumPy, Pandas, Matplotlib
+
+See `requirements.txt` for complete list.
+
+## 📖 Citation
+
+If you use this code or models, please cite:
+
+```bibtex
+@article{zhao2023learning,
+  title={Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware},
+  author={Zhao, Tony Z and Kumar, Vikash and Levine, Sergey and Finn, Chelsea},
+  journal={arXiv preprint arXiv:2304.13705},
+  year={2023}
+}
+```
+
+## 📝 License
+
+This project is licensed under the Apache License 2.0 - see LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## 📧 Contact
 
-For questions or issues, please refer to the implementation guides or create an issue.
+For questions or suggestions, please open an issue on GitHub.
+
+---
+
+**Project Status:** ✅ Complete  
+**Last Updated:** December 11, 2025  
+**Models Published:** 2 (HuggingFace Hub)

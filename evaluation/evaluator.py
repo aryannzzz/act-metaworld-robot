@@ -85,19 +85,42 @@ def evaluate_policy(env, model, num_episodes=100, chunk_size=100,
         while not done and steps < 500:
             # Get observation
             if isinstance(obs, dict):
-                img = obs['image']
-                joints = obs['joints']
+                # Check for both 'images' (dict) and 'image' (single) for compatibility
+                if 'images' in obs:
+                    # New format: images is already a dict
+                    img_dict = obs['images']
+                    # Get first image if dict, or use directly
+                    img = list(img_dict.values())[0] if isinstance(img_dict, dict) else img_dict
+                    # If already preprocessed (CHW format), use as is
+                    if img.shape[0] == 3:  # Already CHW
+                        img_tensor = torch.from_numpy(img).float().unsqueeze(0).to(device)
+                        images_dict = {'default': img_tensor}
+                    else:  # HWC format
+                        img_tensor = torch.from_numpy(img).float() / 255.0
+                        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+                        images_dict = {'default': img_tensor}
+                elif 'image' in obs:
+                    # Old format: single image
+                    img = obs['image']
+                    img_tensor = torch.from_numpy(img).float() / 255.0
+                    img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+                    images_dict = {'default': img_tensor}
+                else:
+                    img = env.render()
+                    img_tensor = torch.from_numpy(img).float() / 255.0
+                    img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+                    images_dict = {'default': img_tensor}
+                
+                joints = obs['joints'] if 'joints' in obs else obs['state']
             else:
                 img = env.render()
                 joints = obs[:4]  # First 4 values for MetaWorld
+                img_tensor = torch.from_numpy(img).float() / 255.0
+                img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+                images_dict = {'default': img_tensor}
             
             # Prepare inputs
-            img_tensor = torch.from_numpy(img).float() / 255.0
-            img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)  # [1, 3, H, W]
-            
             joints_tensor = torch.from_numpy(joints).float().unsqueeze(0).to(device)  # [1, joint_dim]
-            
-            images_dict = {'default': img_tensor}
             
             # Predict action chunk
             with torch.no_grad():

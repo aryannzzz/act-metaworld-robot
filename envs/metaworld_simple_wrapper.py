@@ -17,9 +17,13 @@ class SimpleMetaWorldWrapper:
         obs_state, info = self.env.reset()
         img = self.env.render()
         
+        # Process image: HWC -> CHW and normalize
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            img = img.transpose(2, 0, 1).astype(np.float32) / 255.0
+        
         return {
-            'image': img,
-            'joints': obs_state[:4],  # First 4 values (end-effector position + gripper)
+            'images': {'default': img},  # Wrap in dict for model compatibility
+            'joints': obs_state,  # Full 39-dim state
             'state': obs_state
         }
     
@@ -28,9 +32,13 @@ class SimpleMetaWorldWrapper:
         done = terminated or truncated
         img = self.env.render()
         
+        # Process image: HWC -> CHW and normalize
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            img = img.transpose(2, 0, 1).astype(np.float32) / 255.0
+        
         obs = {
-            'image': img,
-            'joints': obs_state[:4],  # First 4 values (end-effector position + gripper)
+            'images': {'default': img},  # Wrap in dict for model compatibility
+            'joints': obs_state,  # Full 39-dim state
             'state': obs_state
         }
         

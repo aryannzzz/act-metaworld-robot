@@ -33,11 +33,13 @@ data/
 *.hdf5
 *.h5
 
-# Checkpoints
-checkpoints/
+# Large Model Checkpoints - TOO LARGE FOR GITHUB
+# Use Git LFS or HuggingFace Hub for these
 experiments/
+checkpoints/
 *.pth
-*.ckpt
+*.pt
+demonstrations/
 
 # Videos
 videos/
@@ -64,9 +66,8 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb
 
-# Results
-results/
-plots/
-*.png
-*.jpg
-*.jpeg
+# Large temporary files
+temp/
+tmp/
+*.tar.gz
+*.zip

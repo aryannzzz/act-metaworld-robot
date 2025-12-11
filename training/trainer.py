@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 import os
@@ -12,6 +13,9 @@ class ACTTrainer:
         self.model = model.to(device)
         self.device = device
         self.config = config
+        
+        # Get experiment directory
+        self.exp_dir = config.get('exp_dir', '.')
         
         # Optimizer
         self.optimizer = optim.AdamW(
@@ -65,9 +69,9 @@ class ACTTrainer:
         pbar = tqdm(dataloader, desc=f'Epoch {epoch}')
         for batch_idx, batch in enumerate(pbar):
             # Move to device
-            images = {k: v.to(self.device) for k, v in batch['images'].items()}
             joints = batch['joints'].to(self.device)
             actions = batch['actions'].to(self.device)
+            images = {k: v.to(self.device) for k, v in batch['images'].items()}
             
             # Forward pass
             pred_actions, z_mean, z_logvar = self.model(
@@ -119,9 +123,9 @@ class ACTTrainer:
         
         with torch.no_grad():
             for batch in dataloader:
-                images = {k: v.to(self.device) for k, v in batch['images'].items()}
                 joints = batch['joints'].to(self.device)
                 actions = batch['actions'].to(self.device)
+                images = {k: v.to(self.device) for k, v in batch['images'].items()}
                 
                 pred_actions, z_mean, z_logvar = self.model(
                     images, joints, actions, training=True
@@ -184,12 +188,20 @@ class ACTTrainer:
     
     def save_checkpoint(self, filename, epoch):
         """Save model checkpoint"""
+        # Ensure path is relative to experiment directory
+        if not os.path.isabs(filename):
+            filename = os.path.join(self.exp_dir, filename)
+        
         os.makedirs(os.path.dirname(filename), exist_ok=True)
+        
+        # Use full_config if available, otherwise use the partial config
+        save_config = self.config.get('full_config', self.config)
+        
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
-            'config': self.config
+            'config': save_config
         }, filename)
         print(f"✓ Saved checkpoint: {filename}")
