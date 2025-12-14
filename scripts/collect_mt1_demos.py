@@ -41,8 +41,11 @@ def collect_demonstrations(task_name='shelf-place-v3',
     print(f"\n📦 Creating MetaWorld environment...")
     ml1 = metaworld.ML1(task_name)
     env = ml1.train_classes[task_name](render_mode='rgb_array')
-    task = ml1.train_tasks[0]
-    env.set_task(task)
+    
+    # NOTE: We'll set different tasks for each episode to get diversity
+    # Don't set task here - we'll do it in the loop
+    all_tasks = ml1.train_tasks
+    print(f"   ✓ Found {len(all_tasks)} training task variations")
     
     print(f"   ✓ Environment created: {task_name}")
     print(f"   ✓ Action space: {env.action_space}")
@@ -94,6 +97,11 @@ def collect_demonstrations(task_name='shelf-place-v3',
     
     while len(demonstrations) < num_demos and attempts < max_attempts:
         attempts += 1
+        
+        # CRITICAL FIX: Use different task for each episode to get diversity
+        task_idx = len(demonstrations) % len(all_tasks)
+        env.set_task(all_tasks[task_idx])
+        
         obs, info = env.reset()
         
         trajectory = {
@@ -116,6 +124,11 @@ def collect_demonstrations(task_name='shelf-place-v3',
                 action = scripted_policy.get_action(obs)
             else:
                 action = env.action_space.sample()
+            
+            # CRITICAL FIX: Clip actions to environment's valid range
+            # MetaWorld's scripted policies return raw actions outside [-1, 1]
+            # But the environment clips them internally, creating train/test mismatch
+            action = np.clip(action, env.action_space.low, env.action_space.high)
             
             # Record before step
             trajectory['images'].append(obs['image'] if isinstance(obs, dict) else env.render())
@@ -221,6 +234,39 @@ def print_dataset_stats(hdf5_path):
             print(f"   • Length range: [{lengths.min()}, {lengths.max()}]")
             print(f"   • Avg total reward: {rewards.mean():.3f} ± {rewards.std():.3f}")
             print(f"   • Reward range: [{rewards.min():.3f}, {rewards.max():.3f}]")
+            
+            # CRITICAL: Verify demonstrations are different (not identical)
+            print(f"\n🔍 Verifying data diversity...")
+            demo_keys = [k for k in f.keys() if k.startswith('demo_')]
+            if len(demo_keys) >= 2:
+                first_actions = np.array(f[demo_keys[0]]['actions'][:10])
+                second_actions = np.array(f[demo_keys[1]]['actions'][:10])
+                
+                if np.allclose(first_actions, second_actions):
+                    print(f"   ❌ WARNING: First 2 demos are IDENTICAL!")
+                    print(f"   This indicates a data collection bug.")
+                else:
+                    print(f"   ✓ Demos are different (verified first 2)")
+            
+            # Verify action range
+            print(f"\n🔍 Verifying action range...")
+            all_actions = []
+            for dk in demo_keys[:min(5, len(demo_keys))]:
+                actions = np.array(f[dk]['actions'][:])
+                all_actions.append(actions)
+            
+            all_actions = np.concatenate(all_actions, axis=0)
+            action_min = all_actions.min()
+            action_max = all_actions.max()
+            
+            print(f"   • Action range: [{action_min:.3f}, {action_max:.3f}]")
+            
+            if action_min >= -1.0 and action_max <= 1.0:
+                print(f"   ✓ Actions are in valid range [-1, 1]")
+            else:
+                print(f"   ❌ WARNING: Actions outside [-1, 1] range!")
+                print(f"   This will cause train/test mismatch!")
+        
         else:
             print(f"   ⚠️  No demonstrations collected!")
         

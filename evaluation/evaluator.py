@@ -137,6 +137,10 @@ def evaluate_policy(env, model, num_episodes=100, chunk_size=100,
                 # Fallback to first action from chunk
                 action = action_chunk[0]
             
+            # CRITICAL FIX: Clip actions to valid range [-1, 1]
+            # Model may output actions outside this range
+            action = np.clip(action, -1.0, 1.0)
+            
             # Execute action
             obs, reward, done, info = env.step(action)
             steps += 1

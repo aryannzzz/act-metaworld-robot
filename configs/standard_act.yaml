@@ -8,7 +8,7 @@ env:
 
 # Model architecture
 model:
-  joint_dim: 4  # MetaWorld action space is 4D
+  joint_dim: 39  # MetaWorld full state observation is 39D
   action_dim: 4  # [dx, dy, dz, gripper]
   hidden_dim: 512
   latent_dim: 32

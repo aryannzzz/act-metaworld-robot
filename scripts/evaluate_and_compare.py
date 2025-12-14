@@ -15,6 +15,7 @@ import json
 import argparse
 from pathlib import Path
 from tqdm import tqdm
+import yaml
 import matplotlib.pyplot as plt
 
 from models.standard_act import StandardACT
@@ -25,9 +26,34 @@ from evaluation.evaluator import evaluate_policy, TemporalEnsemble
 def load_model(checkpoint_path, variant='standard', device='cuda'):
     """Load a trained model from checkpoint"""
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    config = checkpoint['config']
-    
+    config = checkpoint.get('config', {})
+
     print(f"📦 Loading {variant} model from {checkpoint_path}...")
+
+    # If the checkpoint's config does not contain the expected 'model' section,
+    # try to locate a saved training_config.yaml near the checkpoint (exp_dir/config/...)
+    if 'model' not in config:
+        try:
+            cp = Path(checkpoint_path)
+            candidates = []
+            if isinstance(config, dict) and 'exp_dir' in config:
+                candidates.append(Path(config['exp_dir']) / 'config' / 'training_config.yaml')
+            # common locations: two levels up (experiment dir), same level
+            candidates.append(cp.parent.parent / 'config' / 'training_config.yaml')
+            candidates.append(cp.parent / 'config' / 'training_config.yaml')
+            for p in candidates:
+                if p.exists():
+                    with open(p, 'r') as f:
+                        loaded = yaml.safe_load(f)
+                    if isinstance(loaded, dict) and 'model' in loaded:
+                        config = loaded
+                        print(f"   ✓ Loaded missing config from {p}")
+                        break
+        except Exception:
+            pass
+
+    if 'model' not in config:
+        raise KeyError(f"Checkpoint at {checkpoint_path} missing 'model' configuration. Provide full config or a training_config.yaml next to the checkpoint.")
     
     if variant == 'standard':
         model = StandardACT(
@@ -90,6 +116,25 @@ def evaluate_variants(standard_checkpoint, modified_checkpoint,
     
     # Load models
     print(f"\n🤖 Loading models...")
+    # If provided checkpoint paths don't exist, try to auto-find recent experiment checkpoints
+    from pathlib import Path as _Path
+    if not _Path(standard_checkpoint).exists():
+        candidates = sorted(_Path('experiments').glob(f"*standard*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for d in candidates:
+            p = d / 'checkpoints' / 'best.pth'
+            if p.exists():
+                print(f"   ✓ Auto-found standard checkpoint: {p}")
+                standard_checkpoint = str(p)
+                break
+    if not _Path(modified_checkpoint).exists():
+        candidates = sorted(_Path('experiments').glob(f"*modified*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for d in candidates:
+            p = d / 'checkpoints' / 'best.pth'
+            if p.exists():
+                print(f"   ✓ Auto-found modified checkpoint: {p}")
+                modified_checkpoint = str(p)
+                break
+
     standard_model, config = load_model(standard_checkpoint, 'standard', device)
     modified_model, _ = load_model(modified_checkpoint, 'modified', device)
     

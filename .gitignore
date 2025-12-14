@@ -41,8 +41,10 @@ checkpoints/
 *.pt
 demonstrations/
 
-# Videos
+# Videos and evaluation outputs
 videos/
+evaluation_videos/
+evaluation_videos_multi_angle/
 *.mp4
 *.avi
 
@@ -50,6 +52,23 @@ videos/
 logs/
 wandb/
 *.log
+
+# Temporary evaluation results
+evaluation_results_test*/
+quick_test_eval/
+verification_test/
+rerun_evaluation/
+
+# Documentation (keep only README.md)
+Extra explanation files/
+Guides/
+*_REPORT.md
+*_ANALYSIS.md
+*_GUIDE.md
+*_STATUS.md
+*_SUMMARY.md
+*_PLAN.md
+*_CHECKLIST.md
 
 # IDE
 .vscode/
