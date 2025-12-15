@@ -245,7 +245,7 @@ class ModifiedACT(nn.Module):
     """Modified ACT model with images in encoder"""
     def __init__(self, joint_dim=4, action_dim=4, hidden_dim=512, latent_dim=32,
                  n_encoder_layers=4, n_decoder_layers=7, n_heads=8,
-                 feedforward_dim=3200, chunk_size=100, image_size=(480, 480), 
+                 feedforward_dim=3200, chunk_size=100, n_cameras=1, image_size=(480, 480), 
                  dropout=0.1):
         super().__init__()
         
