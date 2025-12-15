@@ -22,7 +22,7 @@ model:
 # Action chunking
 chunking:
   chunk_size: 100
-  query_frequency: 1
+  query_frequency: 100  # Use full action chunk (same as chunk_size)
   temporal_ensemble_weight: 0.01
 
 # Training

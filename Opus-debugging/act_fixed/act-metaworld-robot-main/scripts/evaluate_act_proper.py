@@ -30,6 +30,7 @@ def evaluate_model(model_type='standard', checkpoint_path=None, num_episodes=50,
         num_episodes: Number of episodes to evaluate
         use_temporal_agg: Whether to use temporal aggregation (like original ACT)
         query_frequency: How often to query the policy (100 = use full chunk, 1 = query every step)
+                        NOTE: Default changed to 100 to properly use action chunking!
     """
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -230,7 +231,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', type=str, default='checkpoints_proper/standard/best_model.pth')
     parser.add_argument('--episodes', type=int, default=50)
     parser.add_argument('--temporal_agg', action='store_true', help='Use temporal aggregation')
-    parser.add_argument('--query_freq', type=int, default=100, help='Query frequency (100=full chunk, 1=every step)')
+    parser.add_argument('--query_freq', type=int, default=100, help='Query frequency (100=use full action chunk)')
     args = parser.parse_args()
     
     evaluate_model(

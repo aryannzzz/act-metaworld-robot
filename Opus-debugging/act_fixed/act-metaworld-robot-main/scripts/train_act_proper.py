@@ -89,14 +89,14 @@ class ACTDataset(Dataset):
             future_actions = actions[start_ts:]
             action_len = len(future_actions)
             
-            # Pad to chunk_size (with proper bounds checking)
+            # Pad to chunk_size (with proper bounds handling)
             copy_len = min(action_len, self.chunk_size)
             padded_actions = np.zeros((self.chunk_size, self.action_dim), dtype=np.float32)
             padded_actions[:copy_len] = future_actions[:copy_len]
             
-            # Create padding mask
-            is_pad = np.zeros(self.chunk_size, dtype=bool)
-            is_pad[copy_len:] = True
+            # Create padding mask (True = padded, False = valid)
+            is_pad = np.ones(self.chunk_size, dtype=bool)
+            is_pad[:copy_len] = False
             
             # Normalize
             if self.norm_stats is not None:

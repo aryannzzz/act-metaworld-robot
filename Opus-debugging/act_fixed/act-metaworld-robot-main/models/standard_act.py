@@ -1,4 +1,4 @@
-# models/modified_act.py
+# models/standard_act.py
 
 import torch
 import torch.nn as nn
@@ -25,22 +25,18 @@ class SinusoidalPosEmb(nn.Module):
         
         pos_emb = torch.zeros(length, self.dim)
         pos_emb[:, 0::2] = torch.sin(position * div_term)
-        if self.dim % 2 == 1:
-            pos_emb[:, 1::2] = torch.cos(position * div_term[:-1])
-        else:
-            pos_emb[:, 1::2] = torch.cos(position * div_term)
+        pos_emb[:, 1::2] = torch.cos(position * div_term)
         
         return pos_emb
 
 class ResNetEncoder(nn.Module):
     """ResNet18 feature extractor for images"""
-    def __init__(self, pretrained=True):
+    def __init__(self):
         super().__init__()
-        resnet = resnet18(pretrained=pretrained)
+        resnet = resnet18(pretrained=True)
         # Remove final FC and avg pool layers
         self.features = nn.Sequential(*list(resnet.children())[:-2])
         # Output: [B, 512, H/32, W/32]
-        self.out_channels = 512
     
     def forward(self, x):
         """
@@ -51,29 +47,20 @@ class ResNetEncoder(nn.Module):
         """
         return self.features(x)
 
-class ModifiedACTEncoder(nn.Module):
-    """CVAE Encoder with Images - Takes images AND actions to learn latent distribution"""
-    def __init__(self, joint_dim=4, action_dim=4, hidden_dim=512, latent_dim=32,
-                 n_layers=4, n_heads=8, image_size=(480, 480), dropout=0.1):
+class StandardACTEncoder(nn.Module):
+    """CVAE Encoder - Standard version (no images)"""
+    def __init__(self, joint_dim=8, action_dim=8, hidden_dim=512, latent_dim=32,
+                 n_layers=4, n_heads=8, dropout=0.1):
         super().__init__()
         
         self.joint_dim = joint_dim
         self.action_dim = action_dim
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
-        self.image_size = image_size
         
-        # Image encoder
-        self.resnet = ResNetEncoder(pretrained=True)
-        
-        # Joint encoder
+        # Input projection
         self.joint_proj = nn.Linear(joint_dim, hidden_dim)
-        
-        # Action encoder
         self.action_proj = nn.Linear(action_dim, hidden_dim)
-        
-        # Image projection
-        self.image_proj = nn.Linear(self.resnet.out_channels, hidden_dim)
         
         # Positional encoding
         self.pos_emb = SinusoidalPosEmb(hidden_dim)
@@ -92,50 +79,30 @@ class ModifiedACTEncoder(nn.Module):
         self.fc_mean = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
     
-    def forward(self, images, joints, actions):
+    def forward(self, joints, actions):
         """
         Args:
-            images: dict with camera_name -> [B, 3, H, W]
-            joints: [B, joint_dim]
-            actions: [B, T, action_dim]
+            joints: [B, joint_dim] - current joint state
+            actions: [B, T, action_dim] - action chunk
         Returns:
             z_mean: [B, latent_dim]
             z_logvar: [B, latent_dim]
         """
         B, T, _ = actions.shape
         
-        # Encode images (for each camera, pool features)
-        image_features_list = []
-        for cam_name, img in images.items():
-            feat = self.resnet(img)  # [B, 512, H', W']
-            B_img, C, H, W = feat.shape
-            feat = feat.flatten(2).permute(0, 2, 1)  # [B, H'*W', 512]
-            feat = self.image_proj(feat)  # [B, H'*W', hidden_dim]
-            
-            # Global average pool over spatial dimensions
-            feat = feat.mean(dim=1, keepdim=True)  # [B, 1, hidden_dim]
-            image_features_list.append(feat)
-        
-        # Concatenate image features from all cameras
-        if image_features_list:
-            image_features = torch.cat(image_features_list, dim=1)  # [B, num_cameras, hidden_dim]
-        else:
-            image_features = torch.zeros(B, 1, self.hidden_dim, device=joints.device)
-        
-        # Project joints and actions
+        # Project inputs
         joint_emb = self.joint_proj(joints).unsqueeze(1)  # [B, 1, hidden_dim]
         action_emb = self.action_proj(actions)  # [B, T, hidden_dim]
         
-        # Concatenate: image_features + joint + actions
-        seq = torch.cat([image_features, joint_emb, action_emb], dim=1)  # [B, num_cams+1+T, hidden_dim]
-        seq_len = seq.shape[1]
+        # Concatenate
+        seq = torch.cat([joint_emb, action_emb], dim=1)  # [B, T+1, hidden_dim]
         
         # Add positional encoding
-        pos = self.pos_emb(seq_len).unsqueeze(0).to(seq.device)  # [1, seq_len, hidden_dim]
+        pos = self.pos_emb(T + 1).unsqueeze(0).to(seq.device)  # [1, T+1, hidden_dim]
         seq = seq + pos
         
         # Transformer encoding
-        encoded = self.transformer(seq)  # [B, seq_len, hidden_dim]
+        encoded = self.transformer(seq)  # [B, T+1, hidden_dim]
         
         # Use last token for latent
         last_token = encoded[:, -1, :]  # [B, hidden_dim]
@@ -148,17 +115,17 @@ class ModifiedACTEncoder(nn.Module):
 
 class ACTDecoder(nn.Module):
     """CVAE Decoder / Policy - Shared between standard and modified"""
-    def __init__(self, joint_dim=4, action_dim=4, hidden_dim=512, latent_dim=32,
-                 n_decoder_layers=7, n_heads=8, feedforward_dim=3200, 
-                 chunk_size=100, dropout=0.1):
+    def __init__(self, joint_dim=8, action_dim=8, hidden_dim=512, latent_dim=32,
+                 n_encoder_layers=4, n_decoder_layers=7, n_heads=8, 
+                 feedforward_dim=3200, chunk_size=100, n_cameras=1, dropout=0.1):
         super().__init__()
         
         self.hidden_dim = hidden_dim
         self.chunk_size = chunk_size
         
-        # Image encoder (for context)
-        self.resnet = ResNetEncoder(pretrained=True)
-        self.image_proj = nn.Linear(512, hidden_dim)
+        # Image encoder
+        self.resnet = ResNetEncoder()
+        self.image_proj = nn.Linear(512, hidden_dim)  # ResNet output is 512
         
         # Joint encoder
         self.joint_proj = nn.Linear(joint_dim, hidden_dim)
@@ -167,6 +134,7 @@ class ACTDecoder(nn.Module):
         self.latent_proj = nn.Linear(latent_dim, hidden_dim)
         
         # Positional encodings
+        self.pos_emb_2d = SinusoidalPosEmb(hidden_dim)
         self.pos_emb_1d = SinusoidalPosEmb(hidden_dim)
         
         # Query tokens (learnable)
@@ -200,21 +168,18 @@ class ACTDecoder(nn.Module):
         image_features = []
         for cam_name, img in images.items():
             feat = self.resnet(img)  # [B, 512, H', W']
-            B_img, C, H, W = feat.shape
+            B, C, H, W = feat.shape
             feat = feat.flatten(2).permute(0, 2, 1)  # [B, H'*W', 512]
             feat = self.image_proj(feat)  # [B, H'*W', hidden_dim]
             
-            # Add positional encoding
+            # Add 2D positional encoding (simplified to 1D for now)
             pos = self.pos_emb_1d(H * W).unsqueeze(0).to(feat.device)
             feat = feat + pos
             
             image_features.append(feat)
         
         # Concatenate all image features
-        if image_features:
-            image_tokens = torch.cat(image_features, dim=1)  # [B, N_tokens, hidden_dim]
-        else:
-            image_tokens = torch.zeros(B, 1, self.hidden_dim, device=joints.device)
+        image_tokens = torch.cat(image_features, dim=1)  # [B, N_tokens, hidden_dim]
         
         # Encode joints
         joint_token = self.joint_proj(joints).unsqueeze(1)  # [B, 1, hidden_dim]
@@ -223,7 +188,7 @@ class ACTDecoder(nn.Module):
         latent_token = self.latent_proj(z).unsqueeze(1)  # [B, 1, hidden_dim]
         
         # Create encoder output (context)
-        encoder_output = torch.cat([image_tokens, joint_token, latent_token], dim=1)
+        encoder_output = torch.cat([image_tokens, joint_token, latent_token], dim=1)  # [B, N+2, hidden_dim]
         
         # Create queries
         query_indices = torch.arange(self.chunk_size, device=joints.device)
@@ -241,22 +206,20 @@ class ACTDecoder(nn.Module):
         
         return actions
 
-class ModifiedACT(nn.Module):
-    """Modified ACT model with images in encoder"""
-    def __init__(self, joint_dim=4, action_dim=4, hidden_dim=512, latent_dim=32,
+class StandardACT(nn.Module):
+    """Complete Standard ACT model (CVAE)"""
+    def __init__(self, joint_dim=8, action_dim=8, hidden_dim=512, latent_dim=32,
                  n_encoder_layers=4, n_decoder_layers=7, n_heads=8,
-                 feedforward_dim=3200, chunk_size=100, n_cameras=1, image_size=(480, 480), 
-                 dropout=0.1):
+                 feedforward_dim=3200, chunk_size=100, n_cameras=1, dropout=0.1):
         super().__init__()
         
-        self.encoder = ModifiedACTEncoder(
+        self.encoder = StandardACTEncoder(
             joint_dim=joint_dim,
             action_dim=action_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
             n_layers=n_encoder_layers,
             n_heads=n_heads,
-            image_size=image_size,
             dropout=dropout
         )
         
@@ -265,10 +228,12 @@ class ModifiedACT(nn.Module):
             action_dim=action_dim,
             hidden_dim=hidden_dim,
             latent_dim=latent_dim,
+            n_encoder_layers=n_encoder_layers,
             n_decoder_layers=n_decoder_layers,
             n_heads=n_heads,
             feedforward_dim=feedforward_dim,
             chunk_size=chunk_size,
+            n_cameras=n_cameras,
             dropout=dropout
         )
         
@@ -297,13 +262,13 @@ class ModifiedACT(nn.Module):
         """
         if training:
             # Encode to get latent distribution
-            z_mean, z_logvar = self.encoder(images, joints, actions)
+            z_mean, z_logvar = self.encoder(joints, actions)
             
             # Sample latent
             z = self.reparameterize(z_mean, z_logvar)
         else:
-            # During inference, use mean of prior (deterministic)
-            # As per ACT paper: "At test time, z is set to zero"
+            # During inference, use mean of prior (z=0) for deterministic output
+            # This is critical! Random z causes inconsistent actions and 0% success
             B = joints.shape[0]
             z = torch.zeros(B, self.latent_dim, device=joints.device)
             z_mean = z_logvar = None

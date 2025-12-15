@@ -223,7 +223,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', type=str, required=True)
     parser.add_argument('--num_videos', type=int, default=10)
     parser.add_argument('--output_dir', type=str, default='videos')
-    parser.add_argument('--query_freq', type=int, default=1)
+    parser.add_argument('--query_freq', type=int, default=100, help='Query frequency (100=full chunk)')
     parser.add_argument('--temporal_agg', action='store_true')
     args = parser.parse_args()
     

@@ -267,9 +267,10 @@ class StandardACT(nn.Module):
             # Sample latent
             z = self.reparameterize(z_mean, z_logvar)
         else:
-            # During inference, sample from prior
+            # During inference, use mean of prior (deterministic)
+            # As per ACT paper: "At test time, z is set to zero"
             B = joints.shape[0]
-            z = torch.randn(B, self.latent_dim, device=joints.device)
+            z = torch.zeros(B, self.latent_dim, device=joints.device)
             z_mean = z_logvar = None
         
         # Decode to get actions
