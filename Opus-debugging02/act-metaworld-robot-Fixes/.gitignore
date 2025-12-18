@@ -1,0 +1,94 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+act_exp/
+
+# Data
+data/
+*.hdf5
+*.h5
+
+# Large Model Checkpoints - TOO LARGE FOR GITHUB
+# Use Git LFS or HuggingFace Hub for these
+experiments/
+checkpoints/
+checkpoints_*/
+*.pth
+*.pt
+demonstrations/
+
+# Reference implementation (keep locally, don't push)
+ACT-original/
+
+# Videos and evaluation outputs (keep plots and comparison images)
+# *.mp4
+# *.avi
+
+# Logs
+logs/
+wandb/
+*.log
+
+# Temporary evaluation results
+evaluation_results_test*/
+quick_test_eval/
+verification_test/
+rerun_evaluation/
+
+# Documentation - Keep important analysis docs
+Extra explanation files/
+Guides/
+# Keep: ROOT_CAUSE_ANALYSIS.md, FINAL_EXPERIMENT_RESULTS.md
+ACT_Virtual_*.md
+CORRECTED_*.md
+*_PLAN.md
+*_CHECKLIST.md
+PROPER_TRAINING_SUMMARY.md
+TESTING_READY.md
+RESULTS.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Large temporary files
+temp/
+tmp/
+*.tar.gz
+*.zip
